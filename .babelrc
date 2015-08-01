@@ -1,3 +1,17 @@
 {
-    "stage": 0
+    "stage": 0,
+    "optional": [
+      "runtime",
+      "optimisation",
+      "minification.memberExpressionLiterals",
+      "minification.propertyLiterals",
+      "optimisation.flow.forOf",
+      "optimisation.modules.system",
+      ],
+    "loose": ["all"],
+    "compact": true,
+    "comments": false,
+    "ast": false,
+    "nonStandard": false,
+    "only": ["lib/Scraper.js"]
 }
