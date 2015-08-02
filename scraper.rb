@@ -19,9 +19,9 @@ class Scraper
     'Andre'   => 'Andre'
   }
 
-  def initialize
-    FileUtils.rm_rf "data.sqlite3"
-    @db = SQLite3::Database.new "data.sqlite3"
+  def initialize(path)
+    FileUtils.rm_rf path
+    @db = SQLite3::Database.new path
   end
 
   def run
@@ -132,5 +132,5 @@ class Scraper
 end
 
 if __FILE__ == $0
-  Scraper.new.run
+  Scraper.new("data.sqlite").run
 end
