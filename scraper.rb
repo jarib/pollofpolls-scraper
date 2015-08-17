@@ -21,10 +21,14 @@ class Scraper
 
   def initialize(path)
     FileUtils.rm_rf path
+
     @db = SQLite3::Database.new path
+    @db.trace { |sql| p sql } if $DEBUG
   end
 
   def run
+    create_table
+
     scrape_municipality
     scrape_county
     scrape_parliament
@@ -32,24 +36,52 @@ class Scraper
 
   private
 
+  def create_table
+    @db.execute <<-SQL
+      CREATE TABLE polls (
+        date date NOT NULL,
+        source varchar(255) NOT NULL,
+        election varchar(50) NOT NULL,
+        region varchar(255) NOT NULL,
+        party varchar(10) NOT NULL,
+        percentage float NOT NULL,
+        comment varchar(255),
+        mandates integer
+      )
+    SQL
+  end
+
   def scrape_municipality
     save(
-      parse(fetch("http://www.pollofpolls.no/?cmd=Kommunestyre&do=vispopalle")),
-      "municipality"
+      parse(fetch('http://www.pollofpolls.no/?cmd=Kommunestyre&do=vispopalle')),
+      source: 'pollofpolls.no',
+      election: 'municipality',
+      region: 'Norge'
+    )
+
+    save(
+      parse(fetch('http://www.pollofpolls.no/?cmd=Kommunestyre&do=vispopalle&landsdelid=0')),
+      source: 'pollofpolls.no',
+      election: 'municipality',
+      region: 'Oslo/Akershus'
     )
   end
 
   def scrape_county
     save(
       parse(fetch("http://www.pollofpolls.no/?cmd=Fylkesting&do=vispopalle")),
-      "county"
+      source: 'pollofpolls.no',
+      election: 'county',
+      region: 'Norge'
     )
   end
 
   def scrape_parliament
     save(
       parse(fetch("http://www.pollofpolls.no/?cmd=Stortinget&do=vispopalle")),
-      "parliament"
+      source: 'pollofpolls.no',
+      election: 'parliament',
+      region: 'Norge'
     )
   end
 
@@ -72,24 +104,8 @@ class Scraper
     }
   end
 
-  def save(data, name)
+  def save(data, opts = {})
     parties = data[:header][1..-1].map { |e| SLUGS.fetch(e) }
-
-    party_columns = parties.flat_map do |e|
-      [
-        "#{e}_percent float",
-        "#{e}_mandates integer"
-      ]
-    end.join(",\n")
-
-
-    @db.execute <<-SQL
-      CREATE TABLE #{name} (
-        name varchar(255),
-        date date,
-        #{party_columns}
-      )
-    SQL
 
     data[:rows].each do |row|
       row_name, *cells = row
@@ -106,21 +122,30 @@ class Scraper
         next
       end
 
-      cols = [row_name, date]
-
-      cells.each do |cell|
+      cells.each_with_index do |cell, idx|
         if cell =~ /^([\d,]+) \((\d+)\)/
           percent, mandates = $1, $2
 
-          cols << Float(percent.sub(',', '.'))
-          cols << Integer(mandates)
+          cols = {
+            comment: row_name,
+            date: date,
+            percentage: Float(percent.sub(',', '.')),
+            mandates: Integer(mandates),
+            party: parties[idx]
+          }.merge(opts)
+
+          keys         = cols.keys
+          values       = cols.keys.map { |k| cols[k] }
+          placeholders = Array.new(values.size, "?").join(', ')
+
+          sql = "INSERT INTO polls (#{keys.join(', ')}) VALUES ( #{placeholders} )"
+          p sql if $DEBUG
+
+          @db.execute(sql, values)
         else
           raise "unable to parse cell: #{cell}"
         end
       end
-
-      placeholders = Array.new(cols.size, "?").join(', ')
-      @db.execute("INSERT INTO #{name} VALUES ( #{placeholders} ) ", cols)
     end
   end
 
