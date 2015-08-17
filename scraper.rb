@@ -3,20 +3,25 @@ require "nokogiri"
 require "sqlite3"
 require "fileutils"
 require "date"
+require "pry"
 
 class Scraper
 
-  SLUGS = {
-    'Ap'      => 'A',
-    'Høyre'   => 'H',
-    'Venstre' => 'V',
-    'KrF'     => 'KrF',
-    'Frp'     => 'FrP',
-    'Rødt'    => 'R',
-    'MDG'     => 'MDG',
-    'SV'      => 'SV',
-    'Sp'      => 'Sp',
-    'Andre'   => 'Andre'
+  PARTIES = {
+    'Ap'            => 'A',
+    'Høyre'         => 'H',
+    'H'             => 'H',
+    'Venstre'       => 'V',
+    'Krf'           => 'KrF',
+    'KrF'           => 'KrF',
+    'Frp'           => 'FrP',
+    'Rødt'          => 'R',
+    'MDG'           => 'MDG',
+    'SV'            => 'SV',
+    'Sp'            => 'Sp',
+    'V'             => 'V',
+    'Andre'         => 'Andre',
+    'Andre partier' => 'Andre',
   }
 
   def initialize(path)
@@ -29,9 +34,11 @@ class Scraper
   def run
     create_table
 
-    scrape_municipality
-    scrape_county
-    scrape_parliament
+    scrape_pop_municipality
+    scrape_pop_county
+    scrape_pop_parliament
+
+    scrape_infact
   end
 
   private
@@ -51,7 +58,7 @@ class Scraper
     SQL
   end
 
-  def scrape_municipality
+  def scrape_pop_municipality
     save(
       parse(fetch('http://www.pollofpolls.no/?cmd=Kommunestyre&do=vispopalle')),
       source: 'pollofpolls.no',
@@ -67,7 +74,7 @@ class Scraper
     )
   end
 
-  def scrape_county
+  def scrape_pop_county
     save(
       parse(fetch("http://www.pollofpolls.no/?cmd=Fylkesting&do=vispopalle")),
       source: 'pollofpolls.no',
@@ -76,13 +83,52 @@ class Scraper
     )
   end
 
-  def scrape_parliament
+  def scrape_pop_parliament
     save(
       parse(fetch("http://www.pollofpolls.no/?cmd=Stortinget&do=vispopalle")),
       source: 'pollofpolls.no',
       election: 'parliament',
       region: 'Norge'
     )
+  end
+
+  INFACT_TABLES = [2015, 2014, 2013, 2012, 2011, 2010, 2009]
+  MONTHS = {
+    'Jan' => 1, 'Feb' => 2, 'Mars' => 3, 'April' => 4,
+    'Mai' => 5, 'Juni' => 6, 'Juli' => 7, 'Aug' => 8, 'Aug I' => 8, 'Aug II' => 8, # FIXME
+    'Sept' => 9, 'Okt' => 10, 'Nov' => 11, 'Des' => 12
+  }
+
+  def scrape_infact
+    doc = Nokogiri::HTML.parse(fetch("http://infact.no/about/arkivoversikt-partibarometer"))
+
+    doc.css('#content table').each_with_index do |table, idx|
+      year = INFACT_TABLES[idx];
+
+      dates = table.
+        css('thead th')[1..-1].
+        map { |e| MONTHS.fetch(e.text.strip) }.
+        map { |m| Date.strptime("#{year}-#{'%02d' % m}", "%Y-%m") }
+
+      party_rows = table.css('tbody tr').map { |row| row.css('td').map { |c| c.text.strip } }
+
+      party_rows.each do |party, *data|
+        next if party === 'Total'
+
+        dates.zip(data).each do |date, val|
+          if val.length > 0
+            save_row(
+              date: date.strftime("%Y-%m-%d"),
+              source: 'InFact',
+              election: 'unknown',
+              region: 'Norge',
+              percentage: Float(val.strip.sub(',', '.').sub('%', '')),
+              party: PARTIES.fetch(party)
+            )
+          end
+        end
+      end
+    end
   end
 
   def fetch(url)
@@ -105,7 +151,7 @@ class Scraper
   end
 
   def save(data, opts = {})
-    parties = data[:header][1..-1].map { |e| SLUGS.fetch(e) }
+    parties = data[:header][1..-1].map { |e| PARTIES.fetch(e) }
 
     data[:rows].each do |row|
       row_name, *cells = row
@@ -134,19 +180,23 @@ class Scraper
             party: parties[idx]
           }.merge(opts)
 
-          keys         = cols.keys
-          values       = cols.keys.map { |k| cols[k] }
-          placeholders = Array.new(values.size, "?").join(', ')
-
-          sql = "INSERT INTO polls (#{keys.join(', ')}) VALUES ( #{placeholders} )"
-          p sql if $DEBUG
-
-          @db.execute(sql, values)
+          save_row cols
         else
           raise "unable to parse cell: #{cell}"
         end
       end
     end
+  end
+
+  def save_row(row)
+    keys         = row.keys
+    values       = row.keys.map { |k| row[k] }
+    placeholders = Array.new(values.size, "?").join(', ')
+
+    sql = "INSERT INTO polls (#{keys.join(', ')}) VALUES ( #{placeholders} )"
+    p sql if $DEBUG
+
+    @db.execute(sql, values)
   end
 
   def date_from(name)
