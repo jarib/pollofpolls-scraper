@@ -47,7 +47,7 @@ class Scraper
       CREATE TABLE polls (
         date date NOT NULL,
         source varchar(255) NOT NULL,
-        election varchar(50) NOT NULL,
+        election varchar(50),
         region varchar(255) NOT NULL,
         party varchar(10) NOT NULL,
         percentage float NOT NULL,
@@ -119,7 +119,6 @@ class Scraper
             save_row(
               date: date.strftime("%Y-%m-%d"),
               source: 'InFact',
-              election: 'unknown',
               region: 'Norge',
               percentage: Float(val.strip.sub(',', '.').sub('%', '')),
               party: PARTIES.fetch(party)
