@@ -3,7 +3,6 @@ require "nokogiri"
 require "sqlite3"
 require "fileutils"
 require "date"
-require "pry"
 
 class Scraper
 
