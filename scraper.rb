@@ -199,7 +199,8 @@ class Scraper
 
   def date_from(name)
     if name =~ /^Uke (\d+)-(\d+)/
-      Date.strptime("#{$1}-#{$2}", "%U-%Y").strftime("%Y-%m-%d")
+      eow = Date.strptime("#{$1}-#{$2}", "%U-%Y")
+      [Date.today, eow].min.strftime("%Y-%m-%d")
     end
   end
 end
