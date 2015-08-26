@@ -94,7 +94,7 @@ class Scraper
   INFACT_TABLES = [2015, 2014, 2013, 2012, 2011, 2010, 2009]
   MONTHS = {
     'Jan' => 1, 'Feb' => 2, 'Mars' => 3, 'April' => 4,
-    'Mai' => 5, 'Juni' => 6, 'Juli' => 7, 'Aug' => 8, 'Aug I' => 8, 'Aug II' => 8, # FIXME
+    'Mai' => 5, 'Juni' => 6, 'Juli' => 7, 'Aug' => 8,
     'Sept' => 9, 'Okt' => 10, 'Nov' => 11, 'Des' => 12
   }
 
@@ -102,12 +102,23 @@ class Scraper
     doc = Nokogiri::HTML.parse(fetch("http://infact.no/about/arkivoversikt-partibarometer"))
 
     doc.css('#content table').each_with_index do |table, idx|
-      year = INFACT_TABLES[idx];
+      year = INFACT_TABLES.fetch(idx);
 
       dates = table.
         css('thead th')[1..-1].
-        map { |e| MONTHS.fetch(e.text.strip) }.
-        map { |m| Date.strptime("#{year}-#{'%02d' % m}", "%Y-%m") }
+        map do |e|
+          str = e.text.strip
+
+          case str
+          when 'Aug I'
+            Date.parse("#{year}-08-01")
+          when 'Aug II'
+            Date.parse("#{year}-08-15")
+          else
+            m = MONTHS.fetch(str)
+            Date.strptime("#{year}-#{'%02d' % m}", "%Y-%m")
+          end
+        end
 
       party_rows = table.css('tbody tr').map { |row| row.css('td').map { |c| c.text.strip } }
 
