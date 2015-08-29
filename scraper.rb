@@ -45,7 +45,8 @@ class Scraper
   def create_table
     @db.execute <<-SQL
       CREATE TABLE polls (
-        date date NOT NULL,
+        startDate date,
+        endDate date NOT NULL,
         source varchar(255) NOT NULL,
         election varchar(50),
         region varchar(255) NOT NULL,
@@ -128,7 +129,7 @@ class Scraper
         dates.zip(data).each do |date, val|
           if val.length > 0
             save_row(
-              date: date.strftime("%Y-%m-%d"),
+              endDate: date.strftime("%Y-%m-%d"),
               source: 'InFact',
               region: 'Norge',
               percentage: Float(val.strip.sub(',', '.').sub('%', '')),
@@ -170,9 +171,9 @@ class Scraper
         next
       end
 
-      date = date_from(row_name)
+      start_date, end_date = dates_from(row_name)
 
-      unless date
+      unless end_date
         puts "unable to parse date from name: #{row_name.inspect}"
         next
       end
@@ -183,7 +184,8 @@ class Scraper
 
           cols = {
             comment: row_name,
-            date: date,
+            startDate: start_date.strftime("%Y-%m-%d"),
+            endDate: end_date.strftime("%Y-%m-%d"),
             percentage: Float(percent.sub(',', '.')),
             mandates: Integer(mandates),
             party: parties[idx]
@@ -208,10 +210,12 @@ class Scraper
     @db.execute(sql, values)
   end
 
-  def date_from(name)
+  def dates_from(name)
     if name =~ /^Uke (\d+)-(\d+)/
       eow = Date.strptime("#{$1}-#{$2}", "%U-%Y")
-      [Date.today, eow].min.strftime("%Y-%m-%d")
+      sow = eow - 6
+
+      [sow, eow]
     end
   end
 end
