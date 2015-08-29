@@ -163,6 +163,8 @@ class Scraper
   def save(data, opts = {})
     parties = data[:header][1..-1].map { |e| PARTIES.fetch(e) }
 
+    previous_row_name = nil
+
     data[:rows].each do |row|
       row_name, *cells = row
 
@@ -171,7 +173,15 @@ class Scraper
         next
       end
 
+      # fix PoP bugs
+      if row_name == 'Uke 1-2014' && previous_row_name == "Uke 2-2015"
+        row_name = "Uke 1-2015"
+      elsif row_name == 'Uke 1-2013' && previous_row_name == "Uke 2-2014"
+        row_name = "Uke 1-2014"
+      end
+
       start_date, end_date = dates_from(row_name)
+
 
       unless end_date
         puts "unable to parse date from name: #{row_name.inspect}"
@@ -196,6 +206,8 @@ class Scraper
           raise "unable to parse cell: #{cell}"
         end
       end
+
+      previous_row_name = row_name
     end
   end
 
