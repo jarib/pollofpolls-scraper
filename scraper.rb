@@ -93,6 +93,14 @@ class Scraper
   end
 
   INFACT_TABLES = [2015, 2014, 2013, 2012, 2011, 2010, 2009]
+
+  INFACT_ELECTION_RANGES = {
+    Date.new(2009, 1, 1)..Date.new(2011, 2, 28)  => 'parliament',
+    Date.new(2011, 3, 1)..Date.new(2011, 9, 30)  => 'municipality',
+    Date.new(2011, 10, 1)..Date.new(2015, 2, 28) => 'parliament',
+    Date.new(2015, 3, 1)..Date.today             => 'municipality',
+  }
+
   MONTHS = {
     'Jan' => 1, 'Feb' => 2, 'Mars' => 3, 'April' => 4,
     'Mai' => 5, 'Juni' => 6, 'Juli' => 7, 'Aug' => 8,
@@ -130,6 +138,7 @@ class Scraper
           if val.length > 0
             save_row(
               endDate: date.strftime("%Y-%m-%d"),
+              election: infact_election_for(date),
               source: 'InFact',
               region: 'Norge',
               percentage: Float(val.strip.sub(',', '.').sub('%', '')),
@@ -143,6 +152,11 @@ class Scraper
 
   def fetch(url)
     Faraday.get(url).body
+  end
+
+  def infact_election_for(date)
+    INFACT_ELECTION_RANGES.each { |range, election| return election if range.include?(date) }
+    raise "could not find InFact's election for #{date}"
   end
 
   def parse(str)
