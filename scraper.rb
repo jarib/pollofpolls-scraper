@@ -109,8 +109,13 @@ class Scraper
 
   def scrape_infact
     doc = Nokogiri::HTML.parse(fetch("http://infact.no/about/arkivoversikt-partibarometer"))
+    tables = doc.css('#content table')
 
-    doc.css('#content table').each_with_index do |table, idx|
+    if tables.size != INFACT_TABLES.size
+      raise "unexpected table size mismatch, expected #{INFACT_TABLES.size}, got #{tables.size}"
+    end
+
+    tables.each_with_index do |table, idx|
       year = INFACT_TABLES.fetch(idx);
 
       dates = table.
