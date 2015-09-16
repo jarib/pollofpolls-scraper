@@ -3,6 +3,7 @@ require "nokogiri"
 require "sqlite3"
 require "fileutils"
 require "date"
+require "pry"
 
 class Scraper
 
@@ -34,10 +35,10 @@ class Scraper
     create_table
 
     scrape_pop_municipality
-    scrape_pop_county
-    scrape_pop_parliament
+    # scrape_pop_county
+    # scrape_pop_parliament
 
-    scrape_infact
+    # scrape_infact
   end
 
   private
@@ -60,17 +61,10 @@ class Scraper
 
   def scrape_pop_municipality
     save(
-      parse(fetch('http://www.pollofpolls.no/?cmd=Kommunestyre&do=vispopalle')),
+      parse(fetch('http://www.pollofpolls.no/?cmd=Kommunestyre&do=vispopalle&dato=2015-08-22')),
       source: 'pollofpolls.no',
       election: 'municipality',
       region: 'Norge'
-    )
-
-    save(
-      parse(fetch('http://www.pollofpolls.no/?cmd=Kommunestyre&do=vispopalle&landsdelid=0')),
-      source: 'pollofpolls.no',
-      election: 'municipality',
-      region: 'Oslo/Akershus'
     )
   end
 
@@ -156,7 +150,7 @@ class Scraper
   end
 
   def fetch(url)
-    Faraday.get(url).body
+    body = Faraday.get(url).body.force_encoding('UTF-8')
   end
 
   def infact_election_for(date)
