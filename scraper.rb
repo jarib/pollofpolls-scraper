@@ -38,7 +38,7 @@ class Scraper
     scrape_pop_county
     scrape_pop_parliament
 
-    # scrape_infact
+    scrape_infact
   end
 
   private
@@ -92,7 +92,8 @@ class Scraper
     Date.new(2009, 1, 1)..Date.new(2011, 2, 28)  => 'parliament',
     Date.new(2011, 3, 1)..Date.new(2011, 9, 30)  => 'municipality',
     Date.new(2011, 10, 1)..Date.new(2015, 2, 28) => 'parliament',
-    Date.new(2015, 3, 1)..Date.today             => 'municipality',
+    Date.new(2015, 3, 1)..Date.new(2015, 9, 30)  => 'municipality',
+    Date.new(2015, 10, 1)..Date.today            => 'parliament'
   }
 
   MONTHS = {
@@ -134,13 +135,15 @@ class Scraper
         next if party === 'Total'
 
         dates.zip(data).each do |date, val|
-          if val.length > 0
+          val = val.strip
+
+          if val.length > 0 && val != "-"
             save_row(
               endDate: date.strftime("%Y-%m-%d"),
               election: infact_election_for(date),
               source: 'InFact',
               region: 'Norge',
-              percentage: Float(val.strip.sub(',', '.').sub('%', '')),
+              percentage: Float(val.sub(',', '.').sub('%', '')),
               party: PARTIES.fetch(party)
             )
           end
