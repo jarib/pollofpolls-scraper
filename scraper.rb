@@ -35,8 +35,8 @@ class Scraper
     create_table
 
     scrape_pop_municipality
-    # scrape_pop_county
-    # scrape_pop_parliament
+    scrape_pop_county
+    scrape_pop_parliament
 
     # scrape_infact
   end
@@ -86,7 +86,7 @@ class Scraper
     )
   end
 
-  INFACT_TABLES = [2015, 2014, 2013, 2012, 2011, 2010, 2009]
+  INFACT_TABLES = [2016, 2015, 2014, 2013, 2012, 2011, 2010, 2009]
 
   INFACT_ELECTION_RANGES = {
     Date.new(2009, 1, 1)..Date.new(2011, 2, 28)  => 'parliament',
