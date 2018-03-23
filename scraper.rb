@@ -37,25 +37,26 @@ class Scraper
     scrape_pop_municipality
     scrape_pop_county
     scrape_pop_parliament
+    scrape_pop_snitt
 
-    scrape_infact
+    # scrape_infact
   end
 
   private
 
   def create_table
     @db.execute <<-SQL
-      CREATE TABLE polls (
-        startDate date,
-        endDate date NOT NULL,
-        source varchar(255) NOT NULL,
-        election varchar(50),
-        region varchar(255) NOT NULL,
-        party varchar(10) NOT NULL,
-        percentage float NOT NULL,
-        comment varchar(255),
-        mandates integer
-      )
+    CREATE TABLE polls (
+      startDate date,
+      endDate date NOT NULL,
+      source varchar(255) NOT NULL,
+      election varchar(50),
+      region varchar(255) NOT NULL,
+      party varchar(10) NOT NULL,
+      percentage float NOT NULL,
+      comment varchar(255),
+      mandates integer
+    )
     SQL
   end
 
@@ -86,79 +87,39 @@ class Scraper
     )
   end
 
-  INFACT_TABLES = [2017, 2016, 2015, 2014, 2013, 2012, 2011, 2010, 2009]
-
-  INFACT_ELECTION_RANGES = {
-    Date.new(2009, 1, 1)..Date.new(2011, 2, 28)  => 'parliament',
-    Date.new(2011, 3, 1)..Date.new(2011, 9, 30)  => 'municipality',
-    Date.new(2011, 10, 1)..Date.new(2015, 2, 28) => 'parliament',
-    Date.new(2015, 3, 1)..Date.new(2015, 9, 30)  => 'municipality',
-    Date.new(2015, 10, 1)..Date.today            => 'parliament'
-  }
+  def scrape_pop_snitt
+    save(
+      parse(fetch("http://www.pollofpolls.no/?cmd=Stortinget&do=visallesnitt")),
+      source: 'pollofpolls.no',
+      election: 'snitt',
+      region: 'Norge'
+    )
+  end
 
   MONTHS = {
-    'Jan' => 1, 'Feb' => 2, 'Mars' => 3, 'April' => 4,
-    'Mai' => 5, 'Juni' => 6, 'Juli' => 7, 'Aug' => 8,
-    'Sept' => 9, 'Okt' => 10, 'Nov' => 11, 'Des' => 12
+    'Jan' => 1,
+    'Januar' => 1,
+    'Feb' => 2,
+    'Februar' => 2,
+    'Mars' => 3,
+    'April' => 4,
+    'Mai' => 5,
+    'Juni' => 6,
+    'Juli' => 7,
+    'Aug' => 8,
+    'August' => 8,
+    'Sept' => 9,
+    'September' => 9,
+    'Okt' => 10,
+    'Oktober' => 10,
+    'Nov' => 11,
+    'November' => 11,
+    'Des' => 12,
+    'Desember' => 12
   }
-
-  def scrape_infact
-    doc = Nokogiri::HTML.parse(fetch("http://infact.no/about/arkivoversikt-partibarometer"))
-    tables = doc.css('#content table')
-
-    if tables.size != INFACT_TABLES.size
-      raise "unexpected table size mismatch, expected #{INFACT_TABLES.size}, got #{tables.size}"
-    end
-
-    tables.each_with_index do |table, idx|
-      year = INFACT_TABLES.fetch(idx);
-
-      dates = table.
-        css('thead th')[1..-1].
-        map do |e|
-          str = e.text.strip
-
-          case str
-          when 'Aug I'
-            Date.parse("#{year}-08-01")
-          when 'Aug II'
-            Date.parse("#{year}-08-15")
-          else
-            m = MONTHS.fetch(str)
-            Date.strptime("#{year}-#{'%02d' % m}", "%Y-%m")
-          end
-        end
-
-      party_rows = table.css('tbody tr').map { |row| row.css('td').map { |c| c.text.strip } }
-
-      party_rows.each do |party, *data|
-        next if party === 'Total'
-
-        dates.zip(data).each do |date, val|
-          val = val.strip
-
-          if val.length > 0 && val != "-"
-            save_row(
-              endDate: date.strftime("%Y-%m-%d"),
-              election: infact_election_for(date),
-              source: 'InFact',
-              region: 'Norge',
-              percentage: Float(val.sub(',', '.').sub('%', '')),
-              party: PARTIES.fetch(party)
-            )
-          end
-        end
-      end
-    end
-  end
 
   def fetch(url)
     body = Faraday.get(url).body.force_encoding('UTF-8')
-  end
-
-  def infact_election_for(date)
-    INFACT_ELECTION_RANGES.each { |range, election| return election if range.include?(date) }
-    raise "could not find InFact's election for #{date}"
   end
 
   def parse(str)
@@ -239,11 +200,24 @@ class Scraper
   end
 
   def dates_from(name)
+    p name: name
+
     if name =~ /^Uke (\d+)-(\d+)/
       eow = Date.strptime("#{$1}-#{$2}", "%U-%Y")
       sow = eow - 6
 
       [sow, eow]
+    elsif name =~ /(#{MONTHS.keys.join('|')}) '(\d{2})/
+      month_name = $1
+      short_year = $2
+
+
+      month = MONTHS[month_name] or raise "unknown month #{month_name}"
+      year = Integer("20#{short_year}")
+
+      start = Date.new(year, month)
+
+      [start, start.next_month - 1]
     end
   end
 end
